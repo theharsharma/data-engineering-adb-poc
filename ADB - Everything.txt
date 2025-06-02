@@ -1,0 +1,213 @@
+Azure Databricks ->
+
+- ADB is independent of any cloud environment
+- Spark Clusters -> generally when we talk about ADB, we are talking about spark cluster
+	-> when we scale horizontally (increase the number of computers/machines), there is not virtual limit
+	-> in spark language, we call machines as Nodes
+	-> when we combine nodes and connect them together, it becomes a cluster
+	-> we do this to distribute our work (Parallel processing)
+		-> lets say we have 1TB of data to work with, if a cluster has 90 nodes, then these 90 nodes can work in parallel to help deliver the desired results
+
+- Spark Architecture -> 
+	-> Only thing we know till now is that cluster is a group of nodes/machines
+	-> Lets say for our example, this spark cluster has 3 nodes
+	-> Every cluster has a cluster manager (spark standalone cluster manager or external like YARN or Kubernetes) 
+	-> the manager will use one of the machines/nodes as the driver program/driver machine
+	-> when we submit the code to the cluster, it first goes to the cluster manager
+	-> then the cluster manager creates the driver program
+	-> then the driver program divides our data processing into small-small tasks; it only gives instructions about what needs to happen, how many machines required to execute these tasks, etc. 
+	-> driver program only orchestrates the task; it will not do any execution
+	-> Driver program uses SparkContext and creates the main() function or script
+	-> SparkContext -> entry point to your spark application
+		-> created in the driver program and is responsible for coordinating with the cluster manager and managing the execution of tasks across the worker nodes
+		-> It facilitates RDD creation
+			-> RDD (Resilient Distributed Dataset) are the core data structure in Apache spark
+			-> it represents a distributed collection of objects that can be processed in parallel across a cluster
+	-> The driver program sends the information about instructions to the cluster manager
+	-> The machines that actually execute the code are called as worker nodes
+	-> Lets say the driver said I need 2 machines, so worker nodes will be created on both the machines
+	-> After the worker nodes are created, the responsibilities of cluster manager are done
+	-> Worker nodes execute the code and return back the results to the driver program directly; now there is no role of cluster manager
+	-> Every worker node has an executor -> 1 executor per worker node
+	-> Worker node contains: an executor, cache, tasks to be executed
+	-> Actually, one worker node can have multiple executors — but only if there is enough CPU and memory available on that node and you configure it that way.
+	-> You can control how many executors run on each worker node by setting certain configuration parameters.
+	-> An executor is a process launched on each worker by the spark driver
+		-> Executors are JVM processes started by Spark
+		-> it runs tasks and stores the data in memory or disk
+		-> executors only live for the lifetime of the spark application (one whole cycle of this driver creation and execution)
+		-> executors are responsible for executing tasks assigned by the driver, store immediate data for shuffling, caching data (if .persist() or .cache() is used) and the send the results back to the driver
+	-> Tasks -> a unit of work sent to an executor
+		-> a job is split into stages and the stages are split into tasks
+		-> each task runs on a partition of data
+	-> Each executor runs multiple tasks and can cache data into memory for faster access.
+
+What is Databricks ->
+	-> we do not need to do all this hardwork of managing these clusters, databricks is doing all this for us 
+	-> it is like a management layer for our spark clusters
+	-> the only thing we need to do is configure our cluster, rest all is managed by databricks
+	-> 2 ways of creating databricks accounts 
+		1. community edition (provided for free by adb for learning)
+		2. cloud accounts (real-world scenarios use this)
+	-> Azure + databricks is the use case for me. 
+	-> Azure is the best to learn because we need to configure a lot of things like key vaults, service principals, etc. when working with Microsoft Azure
+	-> Azure ecosystem ->
+		1. Resource groups -> this is like a folder that holds all the services that we create in azure
+	-> we need to create 3 things:
+		1. resource group
+		2. data lake (delta lakes work on top of data lakes)
+		3. azure databricks workspace
+	-> we are creating data lake using storage accounts here. 
+		-> by default, azure creates storage accounts with blob storage, but we need it to be created with data lake 
+	-> If we just check the Enable hierarchical namespace checkbox while creating a storage account it creates a storage account with data lake because blob containers do not allow hierarchical namespaces.
+	-> all the storage accounts created by all the users in azure should be unique 
+	-> 4 types of data storage in our storage account ->
+		1. containers -> data lake
+		2. file shares -> sharing files with team members
+		3. queues -> when streaming something
+		4. tables -> for NoSQL/ storing data in key-value pairs
+	-> now we will create 2 containers and one we will treat as source and the other will be treated a sink
+	-> creating databricks workspace -> 
+		-> there is something called Managed resource group name as well
+		-> this is not for us, this is for databricks -> because databricks manages our clusters, it will put all those resources/virtual machines inside this managed resource group
+	-> we cannot work with databricks without knowing about delta lake in depth
+
+Azure Databricks workspace overview ->
+	-> Left pane ->
+		1. Workspace -> kind of repositories where we can actually store the notebooks
+		2. Recents -> all the recently opened notebooks, etc.
+		3. Catalog -> one stop store for all the metadata (data about data) (data types, schema, database, tables, etc.) 
+		4. Workflows -> feature that allows us to orchestrate our notebooks; run notebooks in a particula sequence or on regular time intervals, etc.
+		5. Compute -> this feature allows us to create and manage clusters
+		
+		-> There are other sections as well such as SQL, Data engineering, machine learning, etc. which contains offerings for your specific use case and role
+		-> Marketplace contains all the 3rd party partner connect services helping us integrate our data inside ADB with external services like tableau, Power BI, etc.
+	
+	-> Configuring the cluster -> Listing the configurations I chose while creating my cluster in my POC
+		-> Policy -> unrestricted
+		-> single node
+		-> access mode -> single user (enables unity catalog)
+		-> databricks runtime version -> LTS
+	
+	-> Always connect the notebooks that you create to a cluster
+
+
+MAGIC COMMANDS ->
+	-> examples: %python, %r, %scala, %sql, %md, %fs
+	-> we can use multiple notebooks inside the databricks notebooks 
+	-> python API of spark = pyspark
+	
+-> Dataframes => we create dataframes (df) on top of the data we read from the data lake storage or from our custom data.
+	-> schema -> column names and the data types
+	-> createDataFrame function
+
+-> Databricks File System (DBFS)
+	-> you need to provide URL of the container to access data from azure data lake
+	-> so DBFS is a distributed file system which acts as an abstraction layer on top of the data lake 
+		-> thus, we can use file semantics instead of the URL
+		-> so something like /mount/raw/file.csv
+		-> so my notebook acts like the data is residing in this raw folder while actually it is inside the data lake 
+	-> Mounting => we mount the external location and we create the DBFS on top of it
+
+-> Accessing Azure Data Lake storage from Databricks
+	-> using Service Principal and Managed Identity 
+	-> we will use Service Principal
+		-> Service Principal is like an application which has permission to read data from ADL storage
+	-> Steps:
+		1. create service principal
+		2. give it access to the ADL storage
+		3. import these credentials to the ADB
+	1. Go to Microsoft Entra ID in Azure portal and go to app registrations
+		-> create an app registration and copy its app/client ID and directory/tenant ID 
+		-> create a new secret as well and copy that value too
+	2. add role assignment in IAM of storage account
+	3. add code in ADB
+
+-> Databricks Utilities ->
+	-> one popular utility => dbutils.fs() -> used to check what files are stored in a particular location
+	1. dbutils.fs()
+	2. dbutils.widgets -> in real world we need to make our notebook parameterized where we need the user to give us the input and then we use that input
+		-> so every time the notebook runs, it looks for this parameter 
+		-> used to parameterize our notebook
+	3. dbutils.secrets -> we do not want to hard code the secrets in the notebook 
+		-> we create a resource in azure called key vault where we store our secret (key vault names should also be unique)
+		-> then we create a secret scope in ADB which directly connects the ADB to the key vault without hard coding this secret anywhere 
+		-> for creating the secret scope go directly to the URL -> <adb-url-from-azure>#secrets/createScope
+
+Data reading from Azure cloud storage ->
+	-> Data Ingestion using PySpark
+	-> Spark reader API (spark.read)
+	-> we need to specify the following things with this API ->
+		-> format -> delta, csv, parquet, etc.
+		-> option -> 
+			-> for headers, etc.
+			-> inferSchema() -> when we read data from spark, we do not want to define schema everytime
+		-> load -> provide the location of the file you want to load
+
+Data transformations using PySpark ->
+	-> split()
+	-> lit()
+	-> cast()
+
+
+DELTA LAKE ARCHITECTURE -> 
+	-> Delta lake -> not a file format; not a direct one at least
+		-> parquet file format -> columnar format data which is faster in reading, more efficient for big data
+		-> delta format vs parquet format
+			-> lets say we copy data.parquet file from source to destination in the delta format 
+			-> in parquet format, lets say it had 100 files, so it stores the metadata for the file in each file which makes it slower to access that metadata one by one
+			-> in delta format, we get a deltaLog/TransactionLog folder along with these files which contains the metadata for these files separately, making it faster and easier to access that metadata
+			
+%run magic command => imports the given notebook in the current notebook and executes it before proceeding further
+	-> when we write data to a destination folder, we have 4 modes:
+		1. append -> add the file to the container (simple)
+		2. overwrite -> remove the existing files and overwrite them
+		3. error -> if a file is already in the destination, it will throw error only 
+		4. ignore -> if any file is in destination, no write is performed and no error is thrown and only ignored everything
+	-> we read data using folder names not file names 
+	-> inside delta logs folder we have json and crc (cyclic redundancy check) files 
+		-> all the delta logs/ metadata is written in this json file 
+
+External delta tables vs Managed delta tables ->
+	-> Managed Delta Tables ->
+		-> Metastore -> repository where we store all the definitions including database definitions, schema definitions, table definitions (all metadata)
+			-> metastore can be hive metastore or unity metastore
+		-> for managed tables, only metadata related to database and tables is stored inside the metastore, rest all the actual data is stored in the default cloud storage 
+			-> default cloud storage is the storage account that got created with the ADB, in the managed resource group 
+		-> if we drop the managed table, ADB deletes both the metadata from metastore and actual data from data lake storage because both are managed by ADB
+	-> External Delta Tables ->
+		-> actual data stored in our own cloud storage account
+		-> here if we drop the table, ADB deletes the metadata but it does not delete the data because it does not have those permissions
+
+Delta Table functionalities ->
+	1. INSERT -> when we insert data into delta tables, another parquet file gets added for that batch of data and one crc and one json file in delta logs corresponding to that parquet file
+	2. DELETE -> when you delete a record, delta tables optimize the partitions for you and soft delete the parquet files containing the affected records and then create a new optimized partition 
+		-> soft delete => parquet file containing the deleted file is still there just it has removed the record and created a new parquet file then instructed to not read that particular data 
+			-> it adds the "remove" for the previous partitions and "add" for the new one so it is said the previous partitions have been blacklisted or ghosted or tombstoned
+			-> it didn't simply delete the records due to a concept called Data versioning
+				-> we can see what all happened to our table which makes this soft delete very useful
+					-> this is very useful if we ever delete something by mistake and want to rollback/time travel/restore the data
+	3. RESTORE -> Time travel/restore
+	4. VACUUM -> checks all the partitions available for the table, then removes/physically deletes the partitions
+		-> by default it retains the data from last 7 days and deletes everything else
+	
+Delta Table optimizations -> It is always better to read from lesser partitions even if they are bigger in size
+	1. OPTIMIZE command -> reduces the time to load the table
+		-> combines all the small-small partitions into bigger partitions
+	2. ZORDER BY command -> used in Addition with the optimize command
+		-> when we run this command with the OPTIMIZE command, it also sorts the data in some column based on the name provided by us 
+		-> it does not care what part contains what data, it sorts them in either ascending or descending order 
+		-> kind of indexing
+		-> biggest advantage -> data skipping -> optimizes the select statements with where clauses because the data is sorted and indexed so it is faster to search
+
+Incremental Loading with AUTO LOADER -> 
+	-> Streaming Dataframe -> unbounded dataframes
+		-> continuous dataframe with a stream
+	-> streaming query => source to sink 
+		-> saves the current state of the stream like what files have already been read
+		-> trigger value specifies at what time interval it should look for these differences and run 
+	-> we see QPLs here -> query progress logs as this is a constant streaming
+
+Workflows in Azure Databricks -> 
+	-> used for orchestration
+	-> we can schedule these jobs too.
