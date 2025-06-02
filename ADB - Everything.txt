@@ -1,7 +1,7 @@
 Azure Databricks ->
 
 - ADB is independent of any cloud environment
-- Spark Clusters -> generally when we talk about ADB, we are talking about spark cluster
+- Spark Clusters -> generally when we talk about ADB, we are talking about spark clusters
 	-> when we scale horizontally (increase the number of computers/machines), there is not virtual limit
 	-> in spark language, we call machines as Nodes
 	-> when we combine nodes and connect them together, it becomes a cluster
